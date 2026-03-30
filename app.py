@@ -10,24 +10,73 @@ uploaded_file = st.file_uploader("Upload Contracts CSV", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
-    # Clean columns
+    # -------------------------------
+    # CLEAN & NORMALIZE COLUMNS
+    # -------------------------------
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
-    # Convert dates
-    df['end_date'] = pd.to_datetime(df['end_date'])
+    # Map your CSV to expected fields
+    df = df.rename(columns={
+        'name': 'tool_name',
+        'vendor': 'tool_name',
+        'application': 'tool_name',
 
-    # Quarter logic
+        'term_end_date': 'end_date',
+        'end_date': 'end_date',
+        'renewal_date': 'end_date',
+
+        'total_contract_value': 'contract_value',
+        'amount': 'contract_value',
+        'cost': 'contract_value',
+
+        'owner': 'owner'
+    })
+
+    # -------------------------------
+    # VALIDATION (prevents crashes)
+    # -------------------------------
+    required_cols = ['tool_name', 'end_date', 'contract_value']
+
+    missing = [col for col in required_cols if col not in df.columns]
+
+    if missing:
+        st.error(f"Missing required columns: {missing}")
+        st.write("Your columns are:", df.columns)
+        st.stop()
+
+    # -------------------------------
+    # CLEAN DATA TYPES
+    # -------------------------------
+    df['contract_value'] = (
+        df['contract_value']
+        .astype(str)
+        .str.replace('$', '', regex=False)
+        .str.replace(',', '', regex=False)
+    )
+
+    df['contract_value'] = pd.to_numeric(df['contract_value'], errors='coerce')
+
+    df['end_date'] = pd.to_datetime(df['end_date'], errors='coerce')
+
+    df = df.dropna(subset=['contract_value', 'end_date'])
+
+    # -------------------------------
+    # QUARTER LOGIC
+    # -------------------------------
     def get_quarter(date):
-        m = date.month
-        return f"Q{((m-1)//3)+1}"
+        return f"Q{((date.month - 1) // 3) + 1}"
 
     df['quarter'] = df['end_date'].apply(get_quarter)
 
-    # Savings (5% - 7%)
+    # -------------------------------
+    # SAVINGS (5% - 7%)
+    # -------------------------------
     df['low_savings'] = (df['contract_value'] * 0.05).round(2)
     df['high_savings'] = (df['contract_value'] * 0.07).round(2)
 
-    # Confidence logic
+    # -------------------------------
+    # CONFIDENCE LOGIC
+    # -------------------------------
     def get_confidence(value):
         if value >= 50000:
             return "High"
@@ -37,44 +86,52 @@ if uploaded_file:
 
     df['confidence'] = df['contract_value'].apply(get_confidence)
 
-    # Load template
-    template_path = "Updated POA Template - Buyers.xlsx"
-    wb = load_workbook(template_path)
-
-    # Scenario logic
+    # -------------------------------
+    # SCENARIO LOGIC
+    # -------------------------------
     def get_scenario(value):
         if value >= 50000:
             return "🟡 FLAT"
         else:
             return "🟠 DOWNGRADE"
 
-    # Fill sheets
+    # -------------------------------
+    # LOAD TEMPLATE
+    # -------------------------------
+    template_path = "Updated POA Template - Buyers.xlsx"
+    wb = load_workbook(template_path)
+
+    # -------------------------------
+    # FILL SHEETS
+    # -------------------------------
     def fill_sheet(sheet_name, data):
         ws = wb[sheet_name]
         row_num = 5
 
         for _, row in data.iterrows():
-            val = row.get('contract_value', 0)
+            val = row['contract_value']
 
-            ws.cell(row=row_num, column=1).value = row.get('tool_name', '')
-            ws.cell(row=row_num, column=2).value = row.get('end_date', '')
+            ws.cell(row=row_num, column=1).value = row['tool_name']
+            ws.cell(row=row_num, column=2).value = row['end_date']
             ws.cell(row=row_num, column=3).value = round(val / 1000, 2)
             ws.cell(row=row_num, column=4).value = get_scenario(val)
             ws.cell(row=row_num, column=5).value = round((val * 0.05) / 1000, 2)
             ws.cell(row=row_num, column=6).value = round((val * 0.07) / 1000, 2)
-            ws.cell(row=row_num, column=7).value = row.get('confidence', '')
+            ws.cell(row=row_num, column=7).value = row['confidence']
 
             row_num += 1
 
-    # Populate each quarter
     for q in ["Q1", "Q2", "Q3", "Q4"]:
         fill_sheet(q, df[df['quarter'] == q])
 
-    # Save temp file and download
+    # -------------------------------
+    # OUTPUT FILE
+    # -------------------------------
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         wb.save(tmp.name)
 
         st.success("POA generated successfully")
+
         st.download_button(
             label="Download POA",
             data=open(tmp.name, "rb"),
