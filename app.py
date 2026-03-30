@@ -15,21 +15,12 @@ if uploaded_file:
     # -------------------------------
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
-    # Map your CSV to expected fields
-    df = df.rename(columns={
-        'name': 'tool_name',
-        'vendor': 'tool_name',
-        'application': 'tool_name',
-
-        'term_end_date': 'end_date',
-        'end_date': 'end_date',
-        'renewal_date': 'end_date',
-
-        'total_contract_value': 'contract_value',
-        'amount': 'contract_value',
-        'cost': 'contract_value',
-
-        'owner': 'owner'
+# Exact mapping based on your CSV
+df = df.rename(columns={
+    'vendor': 'tool_name',
+    'end_date': 'end_date',
+    'total_cost_(usd)': 'contract_value',
+    'contract_owner': 'owner'
     })
 
     # -------------------------------
