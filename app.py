@@ -11,20 +11,22 @@ if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
     # -------------------------------
-    # CLEAN & NORMALIZE COLUMNS
+    # CLEAN COLUMN NAMES
     # -------------------------------
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
-# Exact mapping based on your CSV
-df = df.rename(columns={
-    'vendor': 'tool_name',
-    'end_date': 'end_date',
-    'total_cost_(usd)': 'contract_value',
-    'contract_owner': 'owner'
+    # -------------------------------
+    # EXACT MAPPING (YOUR CSV)
+    # -------------------------------
+    df = df.rename(columns={
+        'vendor': 'tool_name',
+        'end_date': 'end_date',
+        'total_cost_(usd)': 'contract_value',
+        'contract_owner': 'owner'
     })
 
     # -------------------------------
-    # VALIDATION (prevents crashes)
+    # VALIDATION
     # -------------------------------
     required_cols = ['tool_name', 'end_date', 'contract_value']
 
@@ -36,7 +38,7 @@ df = df.rename(columns={
         st.stop()
 
     # -------------------------------
-    # CLEAN DATA TYPES
+    # CLEAN DATA
     # -------------------------------
     df['contract_value'] = (
         df['contract_value']
@@ -46,7 +48,6 @@ df = df.rename(columns={
     )
 
     df['contract_value'] = pd.to_numeric(df['contract_value'], errors='coerce')
-
     df['end_date'] = pd.to_datetime(df['end_date'], errors='coerce')
 
     df = df.dropna(subset=['contract_value', 'end_date'])
@@ -66,7 +67,7 @@ df = df.rename(columns={
     df['high_savings'] = (df['contract_value'] * 0.07).round(2)
 
     # -------------------------------
-    # CONFIDENCE LOGIC
+    # CONFIDENCE
     # -------------------------------
     def get_confidence(value):
         if value >= 50000:
@@ -78,7 +79,7 @@ df = df.rename(columns={
     df['confidence'] = df['contract_value'].apply(get_confidence)
 
     # -------------------------------
-    # SCENARIO LOGIC
+    # SCENARIO
     # -------------------------------
     def get_scenario(value):
         if value >= 50000:
@@ -93,7 +94,7 @@ df = df.rename(columns={
     wb = load_workbook(template_path)
 
     # -------------------------------
-    # FILL SHEETS
+    # FILL TEMPLATE
     # -------------------------------
     def fill_sheet(sheet_name, data):
         ws = wb[sheet_name]
@@ -116,7 +117,7 @@ df = df.rename(columns={
         fill_sheet(q, df[df['quarter'] == q])
 
     # -------------------------------
-    # OUTPUT FILE
+    # OUTPUT
     # -------------------------------
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         wb.save(tmp.name)
